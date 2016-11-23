@@ -5,6 +5,7 @@ import java.io.*;
 import java.net.*;
 
 import org.msgpack.core.*;
+import org.msgpack.value.*;
 
 public class ClientHandler extends Thread {
 	private final Socket s;
@@ -21,19 +22,22 @@ public class ClientHandler extends Thread {
 	@Override
 	public void run() {
 		try {
-			InputStream is = s.getInputStream();
 			OutputStream os = s.getOutputStream();
-			while (true) {
-				int cmd = is.read();
-				System.err.println("cmd = " + cmd);
-				switch (cmd) {
-					case 0:
-						sendPayload(os);
+			final MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(s.getInputStream());
+			while (unpacker.hasNext()) {
+				final Value v = unpacker.unpackValue();
+				final MessagePacker mbp = MessagePack.newDefaultPacker(os);
+				switch (v.getValueType()) {
+					case INTEGER:
+						switch (v.asIntegerValue().toInt()) {
+							case 0: mbp.packString(ccc.generatePayload(false)); break;
+							case 1: mbp.packString(ccc.generatePayload(true));  break;
+							case 2: mbp.packString(ccc.getCollaboratorServerLocation()); break;
+						}
+						mbp.close();
 						break;
-					case -1:
-						return;
-					default:
-						handleQuery(os, recvPayload(is, cmd));
+					case STRING:
+						handleQuery(mbp, v.asStringValue().asString());
 						break;
 				}
 			}
@@ -42,16 +46,9 @@ public class ClientHandler extends Thread {
 		}
 	}
 
-	private void sendPayload(OutputStream os) throws IOException {
-		String s = ccc.generatePayload(true);
-		os.write(s.length());
-		os.write(s.getBytes());
-	}
-
-	private void handleQuery(OutputStream os, String payload) throws IOException {
+	private void handleQuery(MessagePacker mbp, String payload) throws IOException {
 		final List<IBurpCollaboratorInteraction> bci =
 			ccc.fetchCollaboratorInteractionsFor(payload);
-		final MessagePacker mbp = MessagePack.newDefaultPacker(os);
 		mbp.packArrayHeader(bci.size());
 		for (IBurpCollaboratorInteraction interaction : bci) {
 			final Map<String, String> props = interaction.getProperties();
@@ -75,16 +72,5 @@ public class ClientHandler extends Thread {
 			}
 		}
 		mbp.close();
-	}
-
-	private String recvPayload(InputStream is, int length) throws IOException {
-		byte[] buf = new byte[length];
-		int pos = 0;
-		do {
-			int res = is.read(buf, pos, length - pos);
-			if (res == -1) return null;
-			pos += res;
-		} while (pos < length);
-		return new String(buf);
 	}
 }

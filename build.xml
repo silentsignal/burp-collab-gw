@@ -5,7 +5,7 @@
 			<zipgroupfileset dir="lib" includes="msgpack-core-*.jar"/>
 			<fileset dir="build">
 				<include name="burp/BurpExtender.class"/>
-				<include name="burp/ClientHandler.class"/>
+				<include name="burp/ClientHandler*.class"/>
 			</fileset>
 		</zip>
 	</target>
