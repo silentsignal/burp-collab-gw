@@ -39,6 +39,8 @@ public class BurpExtender extends Thread implements IBurpExtender, IExtensionSta
 				new ClientHandler(cs, ccc, helpers).start();
 
 			}
+		} catch (SocketException se) {
+			if (!se.getMessage().equals("Socket closed")) se.printStackTrace();
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 		}
