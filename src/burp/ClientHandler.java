@@ -34,7 +34,7 @@ public class ClientHandler extends Thread {
 							case 1: mbp.packString(ccc.generatePayload(true));  break;
 							case 2: mbp.packString(ccc.getCollaboratorServerLocation()); break;
 						}
-						mbp.close();
+						mbp.flush();
 						break;
 					case STRING:
 						handleQuery(mbp, v.asStringValue().asString());
@@ -71,6 +71,6 @@ public class ClientHandler extends Thread {
 				}
 			}
 		}
-		mbp.close();
+		mbp.flush();
 	}
 }
