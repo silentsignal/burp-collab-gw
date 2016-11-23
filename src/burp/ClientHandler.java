@@ -4,13 +4,18 @@ import java.util.*;
 import java.io.*;
 import java.net.*;
 
+import org.msgpack.core.*;
+
 public class ClientHandler extends Thread {
 	private final Socket s;
 	private final IBurpCollaboratorClientContext ccc;
+	private final IExtensionHelpers helpers;
 
-	public ClientHandler(Socket s, IBurpCollaboratorClientContext ccc) {
+	public ClientHandler(Socket s, IBurpCollaboratorClientContext ccc,
+			IExtensionHelpers helpers) {
 		this.s = s;
 		this.ccc = ccc;
+		this.helpers = helpers;
 	}
 
 	@Override
@@ -20,6 +25,7 @@ public class ClientHandler extends Thread {
 			OutputStream os = s.getOutputStream();
 			while (true) {
 				int cmd = is.read();
+				System.err.println("cmd = " + cmd);
 				switch (cmd) {
 					case 0:
 						sendPayload(os);
@@ -42,23 +48,33 @@ public class ClientHandler extends Thread {
 		os.write(s.getBytes());
 	}
 
-/*
- * un-base64: request, response, raw_query
- * un-ip: client_ip
- * remove: interaction_id
- */
-
 	private void handleQuery(OutputStream os, String payload) throws IOException {
 		final List<IBurpCollaboratorInteraction> bci =
 			ccc.fetchCollaboratorInteractionsFor(payload);
-		os.write(bci.size());
-		for (IBurpCollaboratorInteraction i : bci) {
-			System.out.println("---bci---");
-			for (Map.Entry<String, String> e : i.getProperties().entrySet()) {
-				System.out.println(e.getKey() + " => " + e.getValue());
+		final MessagePacker mbp = MessagePack.newDefaultPacker(os);
+		mbp.packArrayHeader(bci.size());
+		for (IBurpCollaboratorInteraction interaction : bci) {
+			final Map<String, String> props = interaction.getProperties();
+			mbp.packMapHeader(props.size() - (props.containsKey("interaction_id") ? 1 : 0));
+			for (final Map.Entry<String, String> entry : props.entrySet()) {
+				final String k = entry.getKey();
+				if (k.equals("interaction_id")) continue;
+				mbp.packString(k);
+				final String v = entry.getValue();
+				if (k.equals("request") || k.equals("response") || k.equals("raw_query")) {
+					final byte[] buf = helpers.base64Decode(v);
+					mbp.packBinaryHeader(buf.length);
+					mbp.writePayload(buf);
+				} else if (k.equals("client_ip")) {
+					final byte[] buf = InetAddress.getByName(v).getAddress();
+					mbp.packBinaryHeader(buf.length);
+					mbp.writePayload(buf);
+				} else {
+					mbp.packString(v);
+				}
 			}
 		}
-		System.out.println("---eof---");
+		mbp.close();
 	}
 
 	private String recvPayload(InputStream is, int length) throws IOException {

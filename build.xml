@@ -2,6 +2,7 @@
 <project name="burp-collab-gw" default="plugin">
 	<target name="plugin" depends="classes">
 		<zip destfile="burp-collab-gw.jar">
+			<zipgroupfileset dir="lib" includes="msgpack-core-*.jar"/>
 			<fileset dir="build">
 				<include name="burp/BurpExtender.class"/>
 				<include name="burp/ClientHandler.class"/>
@@ -10,7 +11,13 @@
 	</target>
 	<target name="classes">
 		<mkdir dir="build"/>
-		<javac srcdir="src" destdir="build" includeantruntime="false"/>
+		<javac srcdir="src" destdir="build" includeantruntime="false">
+			<classpath>
+				<fileset dir="lib">
+					<include name="**/*.jar"/>
+				</fileset>
+			</classpath>
+		</javac>
 	</target>
 	<target name="clean">
 		<delete dir="build"/>
